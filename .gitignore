@@ -1,0 +1,30 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# ngrok
+ngrok
+ngrok-*.zip
+
+# Local scripts
+start_public.py
+start_public.sh
+HUONG_DAN_ON_AIR.md
+LINK_CONG_KHAI.md
+README_DEPLOY.md

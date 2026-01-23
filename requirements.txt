@@ -1,0 +1,7 @@
+flask
+trafilatura
+beautifulsoup4
+requests
+lxml
+lxml_html_clean
+gunicorn

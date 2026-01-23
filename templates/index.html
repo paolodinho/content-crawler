@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Content Crawler for WordPress</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>Content Crawler</h1>
+            <p>Extract content formatted for WordPress</p>
+        </header>
+
+        <div class="input-section">
+            <input type="text" id="urlInput" placeholder="Paste article URL here..." />
+            <button id="crawlBtn" onclick="crawlContent()">Crawl Content</button>
+        </div>
+
+        <div id="loading" class="hidden">
+            <div class="spinner"></div>
+            <p>Crawling content...</p>
+        </div>
+
+        <div id="resultSection" class="hidden">
+            <div class="result-header">
+                <h2>Result</h2>
+                <div class="actions">
+                    <button class="secondary-btn" onclick="copyTitle()">Copy Title</button>
+                    <button class="primary-btn" onclick="copyContent()">Copy Content HTML</button>
+                    <button class="primary-btn" style="background-color: #28a745;" onclick="copyAll()">Copy Title +
+                        Content</button>
+                </div>
+            </div>
+
+            <div class="field-group">
+                <label>Title</label>
+                <input type="text" id="resultTitle" readonly />
+            </div>
+
+            <div class="field-group">
+                <label>Preview</label>
+                <div id="resultPreview" class="preview-box"></div>
+            </div>
+
+            <div class="field-group">
+                <label>HTML Code (for WordPress Text Mode)</label>
+                <textarea id="resultHtml" readonly></textarea>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function crawlContent() {
+            const url = document.getElementById('urlInput').value;
+            if (!url) {
+                alert('Please enter a URL');
+                return;
+            }
+
+            const loading = document.getElementById('loading');
+            const resultSection = document.getElementById('resultSection');
+            const btn = document.getElementById('crawlBtn');
+
+            loading.classList.remove('hidden');
+            resultSection.classList.add('hidden');
+            btn.disabled = true;
+
+            try {
+                const response = await fetch('/crawl', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ url: url }),
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    document.getElementById('resultTitle').value = data.title || 'No Title Found';
+                    document.getElementById('resultPreview').innerHTML = data.content;
+                    document.getElementById('resultHtml').value = data.content;
+                    resultSection.classList.remove('hidden');
+                } else {
+                    alert('Error: ' + data.error);
+                }
+
+            } catch (error) {
+                alert('An error occurred: ' + error.message);
+            } finally {
+                loading.classList.add('hidden');
+                btn.disabled = false;
+            }
+        }
+
+        function copyTitle() {
+            const titleInput = document.getElementById('resultTitle');
+            titleInput.select();
+            document.execCommand('copy');
+            // Or use navigator.clipboard
+            // navigator.clipboard.writeText(titleInput.value);
+            showToast('Title copied!');
+        }
+
+        function copyContent() {
+            const htmlInput = document.getElementById('resultHtml');
+            htmlInput.select();
+            document.execCommand('copy');
+            showToast('HTML content copied!');
+        }
+
+        function copyAll() {
+            const title = document.getElementById('resultTitle').value;
+            const content = document.getElementById('resultHtml').value;
+            const combined = `<h1>${title}</h1>\n\n${content}`;
+
+            const tempTextArea = document.createElement('textarea');
+            tempTextArea.value = combined;
+            document.body.appendChild(tempTextArea);
+            tempTextArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempTextArea);
+
+            showToast('Title & Content copied!');
+        }
+
+        function showToast(message) {
+            // Simple alert for now, can be improved
+            const originalText = document.activeElement.innerText;
+            if (document.activeElement.tagName === 'BUTTON') {
+                const btn = document.activeElement;
+                btn.innerText = 'Copied!';
+                setTimeout(() => {
+                    btn.innerText = originalText.replace('Copied!', originalText); // Restore (lazy way)
+                    // Actually better just to not change text or have a dedicated toast.
+                    // Let's just reset the text manually based on which button it was if we want, 
+                    // but alert is simplest for MVP or just a floating div.
+                }, 2000);
+            }
+        }
+    </script>
+</body>
+
+</html>
