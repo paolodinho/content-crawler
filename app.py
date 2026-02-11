@@ -79,10 +79,8 @@ def crawl():
         if not html_content:
             use_fallback = True
         elif '<img' not in html_content and len(soup_pre.find_all('img')) > 0:
-            # Trafilatura stripped all images? Suspicious for a news site.
-            # Check specifically for VnExpress-like structures
-            if 'vnexpress.net' in url or 'fck_detail' in downloaded:
-                use_fallback = True
+            # Trafilatura stripped all images - use fallback for ANY site
+            use_fallback = True
 
         if use_fallback:
             print("Trafilatura failed or stripped images. Using BeautifulSoup fallback.")
@@ -90,9 +88,9 @@ def crawl():
                 soup = BeautifulSoup(downloaded, 'html.parser')
                 
                 # Try to find the main content container
-                # Common candidates: article, .fck_detail (VnExpress), .content, #content
+                # Common candidates: article, .fck_detail (VnExpress), .detail-content (TheThaoVanHoa), etc.
                 content_node = None
-                selectors = ['article', '.fck_detail', '.content-detail', '#content', '.post-content', '.entry-content']
+                selectors = ['article', '.fck_detail', '.detail-content', '.content-detail', '#content', '.post-content', '.entry-content']
                 
                 for selector in selectors:
                     content_node = soup.select_one(selector)
