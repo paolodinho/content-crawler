@@ -23,18 +23,33 @@ def crawl():
              return jsonify({'error': 'Could not fetch URL. Please check if the URL is accessible.'}), 400
         
         # Pre-process to fix lazy loading BEFORE trafilatura runs
-        # This is crucial because trafilatura might strip images without src attributes
         try:
             soup_pre = BeautifulSoup(downloaded, 'html.parser')
+            
+            # 1. Remove scripts and styles first to clean up
+            for script in soup_pre(["script", "style"]):
+                script.extract()
+
+            # 2. Aggressively fix images
             for img in soup_pre.find_all('img'):
-                lazy_attrs = ['data-src', 'data-original', 'data-lazy-src', 'data-url', 'data-src-large', 'data-src-medium']
-                for attr in lazy_attrs:
+                # List of attributes to check for real image URL
+                # Order matters: check most likely candidates first
+                candidates = ['data-src', 'data-original', 'data-lazy-src', 'data-url', 'data-src-large', 'data-src-medium', 'src']
+                
+                real_src = None
+                for attr in candidates:
                     val = img.get(attr)
-                    if val:
-                        img['src'] = val
-                        # Remove the lazy attribute to avoid confusion
-                        del img[attr]
+                    if val and val.startswith('http') and 'gif' not in val: # Simple filter for placeholders
+                        real_src = val
                         break
+                
+                if real_src:
+                    img['src'] = real_src
+                    # Clean up other attributes to avoid confusion
+                    for attr in candidates:
+                        if attr != 'src' and img.has_attr(attr):
+                            del img[attr]
+            
             downloaded = str(soup_pre)
         except Exception as e:
             print(f"Pre-processing failed: {e}")
@@ -49,14 +64,19 @@ def crawl():
             print(f"Metadata extraction failed: {e}")
         
         # Extract main content with trafilatura
+        # include_images=True is critical
         html_content = trafilatura.extract(
             downloaded, 
             include_images=True, 
             include_links=True,
+            include_formatting=True, # Preserve bold, italic, etc.
             output_format='html'
         )
         
         if not html_content:
+             # Fallback: If trafilatura fails to extract content or images, 
+             # let's try a simpler newspaper-like extraction specifically for this case
+             # or just return the error. For now, let's stick to error.
              return jsonify({
                  'error': 'Could not extract content from this page. The page might be empty or protected.'
              }), 400
