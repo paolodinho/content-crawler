@@ -49,6 +49,15 @@ def crawl():
         try:
             soup = BeautifulSoup(html_content, 'html.parser')
             
+            # Handle lazy loaded images
+            for img in soup.find_all('img'):
+                # List of common lazy loading attributes
+                lazy_attrs = ['data-src', 'data-original', 'data-lazy-src', 'data-url']
+                for attr in lazy_attrs:
+                    if img.get(attr):
+                        img['src'] = img.get(attr)
+                        break
+            
             # Remove empty tags
             for tag in soup.find_all():
                 if len(tag.get_text(strip=True)) == 0 and tag.name not in ['img', 'br', 'hr']:
