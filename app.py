@@ -17,12 +17,29 @@ def crawl():
         if not url:
             return jsonify({'error': 'URL is required'}), 400
 
-        # Download and extract content using trafilatura
+        # Download content
         downloaded = trafilatura.fetch_url(url)
         if not downloaded:
              return jsonify({'error': 'Could not fetch URL. Please check if the URL is accessible.'}), 400
         
-        # Extract metadata first
+        # Pre-process to fix lazy loading BEFORE trafilatura runs
+        # This is crucial because trafilatura might strip images without src attributes
+        try:
+            soup_pre = BeautifulSoup(downloaded, 'html.parser')
+            for img in soup_pre.find_all('img'):
+                lazy_attrs = ['data-src', 'data-original', 'data-lazy-src', 'data-url', 'data-src-large', 'data-src-medium']
+                for attr in lazy_attrs:
+                    val = img.get(attr)
+                    if val:
+                        img['src'] = val
+                        # Remove the lazy attribute to avoid confusion
+                        del img[attr]
+                        break
+            downloaded = str(soup_pre)
+        except Exception as e:
+            print(f"Pre-processing failed: {e}")
+
+        # Extract metadata
         title = "No Title Found"
         try:
             metadata = trafilatura.extract_metadata(downloaded)
@@ -30,7 +47,6 @@ def crawl():
                 title = metadata.title
         except Exception as e:
             print(f"Metadata extraction failed: {e}")
-            # Continue anyway, we'll just use default title
         
         # Extract main content with trafilatura
         html_content = trafilatura.extract(
@@ -45,18 +61,9 @@ def crawl():
                  'error': 'Could not extract content from this page. The page might be empty or protected.'
              }), 400
 
-        # Clean up with BeautifulSoup
+        # Post-process cleanup
         try:
             soup = BeautifulSoup(html_content, 'html.parser')
-            
-            # Handle lazy loaded images
-            for img in soup.find_all('img'):
-                # List of common lazy loading attributes
-                lazy_attrs = ['data-src', 'data-original', 'data-lazy-src', 'data-url']
-                for attr in lazy_attrs:
-                    if img.get(attr):
-                        img['src'] = img.get(attr)
-                        break
             
             # Remove empty tags
             for tag in soup.find_all():
@@ -67,7 +74,6 @@ def crawl():
             final_html = str(soup)
         except Exception as e:
             print(f"HTML cleanup failed: {e}")
-            # If cleanup fails, just use the raw extracted HTML
             final_html = html_content
         
         return jsonify({
