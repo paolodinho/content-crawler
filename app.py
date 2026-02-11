@@ -102,6 +102,7 @@ def crawl():
                 if content_node:
                     # VnExpress-specific: Convert slide show divs to img tags
                     if 'vnexpress.net' in url:
+                        # Type 1: item_slide_show with img data-src
                         for slide in content_node.select('.item_slide_show'):
                             # Find img tags with data-src inside the slide
                             img_tag = slide.find('img')
@@ -118,6 +119,24 @@ def crawl():
                                         new_img.insert_after(caption)
                                     else:
                                         slide.replace_with(new_img)
+                        
+                        # Type 2: figure.tplCaption with meta tag containing URL
+                        for figure in content_node.select('figure.tplCaption'):
+                            # Look for meta itemprop="url" inside
+                            meta_url = figure.find('meta', itemprop='url')
+                            if meta_url and meta_url.get('content'):
+                                img_url = meta_url.get('content')
+                                if img_url.startswith('http'):
+                                    # Create new img tag
+                                    new_img = soup.new_tag('img', src=img_url)
+                                    # Get caption (figcaption)
+                                    caption = figure.find('figcaption')
+                                    if caption:
+                                        # Replace figure with img + caption
+                                        figure.replace_with(new_img)
+                                        new_img.insert_after(caption)
+                                    else:
+                                        figure.replace_with(new_img)
                     
                     # Clean up the fallback content
                     # Remove hidden elements, scripts, styles
