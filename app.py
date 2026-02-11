@@ -73,10 +73,72 @@ def crawl():
             output_format='html'
         )
         
+        # Validation: Check if trafilatura did a good job
+        # If no content or (no images found BUT we know there are images), try fallback
+        use_fallback = False
         if not html_content:
-             # Fallback: If trafilatura fails to extract content or images, 
-             # let's try a simpler newspaper-like extraction specifically for this case
-             # or just return the error. For now, let's stick to error.
+            use_fallback = True
+        elif '<img' not in html_content and len(soup_pre.find_all('img')) > 0:
+            # Trafilatura stripped all images? Suspicious for a news site.
+            # Check specifically for VnExpress-like structures
+            if 'vnexpress.net' in url or 'fck_detail' in downloaded:
+                use_fallback = True
+
+        if use_fallback:
+            print("Trafilatura failed or stripped images. Using BeautifulSoup fallback.")
+            try:
+                soup = BeautifulSoup(downloaded, 'html.parser')
+                
+                # Try to find the main content container
+                # Common candidates: article, .fck_detail (VnExpress), .content, #content
+                content_node = None
+                selectors = ['article', '.fck_detail', '.content-detail', '#content', '.post-content', '.entry-content']
+                
+                for selector in selectors:
+                    content_node = soup.select_one(selector)
+                    if content_node:
+                        break
+                
+                if content_node:
+                    # VnExpress-specific: Convert slide show divs to img tags
+                    if 'vnexpress.net' in url:
+                        for slide in content_node.select('.item_slide_show'):
+                            # Find img tags with data-src inside the slide
+                            img_tag = slide.find('img')
+                            if img_tag:
+                                src = img_tag.get('data-src') or img_tag.get('src')
+                                if src and src.startswith('http'):
+                                    # Create a clean img tag
+                                    new_img = soup.new_tag('img', src=src)
+                                    # Get caption if exists
+                                    caption = slide.select_one('.desc_cation')
+                                    if caption:
+                                        # Replace the slide with img + caption
+                                        slide.replace_with(new_img)
+                                        new_img.insert_after(caption)
+                                    else:
+                                        slide.replace_with(new_img)
+                    
+                    # Clean up the fallback content
+                    # Remove hidden elements, scripts, styles
+                    for tag in content_node.select('script, style, .hidden, [style*="display: none"]'):
+                        tag.decompose()
+                        
+                    # Remove empty paragraphs
+                    for tag in content_node.find_all('p'):
+                        if not tag.get_text(strip=True) and not tag.find('img'):
+                            tag.decompose()
+                            
+                    html_content = str(content_node)
+            except Exception as e:
+                print(f"Fallback extraction failed: {e}")
+                # If fallback fails, revert to whatever trafilatura found (if anything)
+                if not html_content and not use_fallback: 
+                     # If we were forcing fallback but it failed, and trafilatura had something, use it.
+                     # But here 'html_content' is already from trafilatura (or None).
+                     pass
+
+        if not html_content:
              return jsonify({
                  'error': 'Could not extract content from this page. The page might be empty or protected.'
              }), 400
